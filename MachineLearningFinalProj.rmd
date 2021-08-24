@@ -1,0 +1,379 @@
+---
+title: "Practical Machine Learning: Final Project "
+author: "Darrell Gerber"
+date: "8/24/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(ggplot2)
+library(randomForest)
+library(corrplot)
+library(reactable)
+```
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now
+possible to collect a large amount of data about personal activity
+relatively inexpensively. These type of devices are part of the
+quantified self movement -- a group of enthusiasts who take measurements
+about themselves regularly to improve their health, to find patterns in
+their behavior, or because they are tech geeks. One thing that people
+regularly do is quantify how much of a particular activity they do, but
+they rarely quantify how well they do it. In this project, your goal
+will be to use data from accelerometers on the belt, forearm, arm, and
+dumbell of 6 participants. They were asked to perform barbell lifts
+correctly and incorrectly in 5 different ways. More information is
+available from the website here:
+<http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight
+Lifting Exercise Dataset).
+
+The goal of your project is to predict the manner in which they did the
+exercise. This is the "classe" variable in the training set. You may use
+any of the other variables to predict with. You should create a report
+describing how you built your model, how you used cross validation, what
+you think the expected out of sample error is, and why you made the
+choices you did. You will also use your prediction model to predict 20
+different test cases.
+
+NOTE: At the time of this submission, the groupware site referenced
+above is inaccessible. Therefore, we are limited to the information
+available in the data files to understand the data.
+
+NOTE TO REVIEWERS: Some of the prediction methods used are computational expensive. To cut down on computation time and still allow for model tuning, parallel processing is enabled. For more information on using parallel processing for this project and the impacts, refer to https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md. 
+```{r parallel}
+# Setup parallel processing
+library(parallel)
+library(doParallel)
+cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+
+set.seed(123)
+
+```
+
+## Loading and Exploring Data
+
+Download the data from online storage and load it into training and
+testing data sets.
+
+```{r loading, cache=TRUE}
+
+destFolder = "./data"
+
+if(!file.exists(destFolder)) {dir.create(destFolder)}
+
+fileUrl <- "https:/d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+destFile = "./data/pml-training.csv"
+if(!file.exists(destFile)) {
+    download.file(fileUrl, destfile = destFile, method = "curl")
+}
+
+dataTraining <- read.csv(destFile)
+
+fileUrl <- "https:/d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+destFile = "./data/pml-testing.csv"
+if(!file.exists(destFile)) {
+    download.file(fileUrl, destfile = destFile, method = "curl")
+}
+
+dataTesting <- read.csv(destFile)
+
+```
+  
+Unfortunately, the variable we are going to predict, 'classe', is not present in the testing data set loaded above. This prevents checking the accuracy of the model so we will not
+use that data set.
+
+```{r testingnames}
+ifelse("classe" %in% names(dataTesting), 
+       print("'classe' is in Testing data set"),
+       print("'classe' is NOT found in Testing data set"))
+```
+  
+Instead, split the dataTraining data set into a training and validation sets. 
+
+```{r trainvalidation, cache=TRUE}
+inTrain <- createDataPartition(y = dataTraining$classe,
+                               p = 0.7,
+                               list = FALSE)
+dataTraining$classe <- as.factor(dataTraining$classe)
+training <- dataTraining[inTrain,]; validation <- dataTraining[-inTrain,]
+```
+  
+There are `r dim(dataTraining)[2]` variables in the training data set, however, some of the variables are almost entirely devoid of information due to blanks, NAs, or division by zero errors.  
+```{r countbaddata, cache=TRUE}
+bad_count <-sapply(training, function(x) sum(is.na(x) | x == "" | x == "#DIV/0!"))
+numWithBad <- sum(bad_count==0)
+```
+  
+`r numWithBad` columns have at least one of these problem entries. Just to be sure, only the variables with more than 70% valid data will be kept.  (NOTE: determine the columns to remove by looking at the training data only but apply it to both training and validation data sets).  
+  
+```{r trimmingdata, cache=TRUE}
+dimStart <- dim(training)[2]
+few_bad <- bad_count <= 0.7*length(training$classe)
+training <- training[,few_bad]
+validation <- validation[,few_bad]
+dimBad <- dim(training)[2]
+```
+  
+This reduced the variables from `r dimStart` to `r dimBad`.  
+
+We can also remove some of the variables that we don't want to use to predict the
+outcome. These include user related variables and timestamps (the selection must be user agnostic and this isn't time series data).  As illustrated below, the new_window variable has very little variation so it can be removed from modeling, too. 
+```{r removingvariables, cache=TRUE}
+
+table(training$new_window)
+training <- training[,-c(1, 2, 3, 4, 5, 6)]
+validation <- validation[,-c(1, 2, 3, 4, 5, 6)]
+```
+  
+Correlation between variables can cause many of our models to perform poorly. Plot the correlation matrix to see if we have any highly correlated predictors. 
+``` {r correlation, cache=TRUE}
+corr <- cor(training[,-54])
+corrplot(corr, type="upper", order="hclust", 
+         sig.level = 0.01, insig = "blank")
+
+```
+  
+A large number of variables have a low correlation. However, there are a few highly correlated variables. Find those variables with a high level of correlation to other variables in the data set and remove them. A cutoff of 0.9 will only remove those with the most extreme correlation. 
+``` {r removecorrelated, cache=TRUE}
+dimb4Corr <- dim(training)
+removeCorr <- findCorrelation(corr, cutoff = 0.9)
+print("Indices of highly correlated variables to remove")
+removeCorr
+training <- training[,-removeCorr]
+validation <- validation[,-removeCorr]
+dimAfterCorr <- dim(training)
+```
+  
+This removes another `r (dimb4Corr - dimAfterCorr)` variables, leaving a final data set of `r (dimAfterCorr - 1)` variables we will use to predict the variable 'classe'.  
+
+# Modeling
+The general approach is to individually evaluate several unrelated modeling methods and then combine their results using model stacking. The 'classe' variable is a factor with 5 possible values, therefore, we will select prediction models appropriate for classification problems. Random Forest and Generalized Boosting models, both tree-based models, are used along with Linear Discrete Analysis and Naive Bayes, both model-based methods. There are many, many modeling options so this is only a small sample of options.   
+
+## Random Forest
+Random Forest is an extension of bagging for classification and regression trees. It should prove highly accurate but is computationally intensive and susceptible to overfitting. For that reason, we will tune the algorithm to avoid overfitting and improve performance.  
+
+The total number of trees is reduced to 150 from the default 500. The model is then trained using values of mtry ranging from 1 to 15. (refer to https://rpubs.com/phamdinhkhanh/389752 for this and other tuning methods.)
+``` {r RandomForestTune, warning=FALSE, cache=TRUE}
+mbmRFtune <- system.time({
+
+  RFControl <- trainControl(method='repeatedcv',
+                          number=10,
+                          repeats=3,
+                          search='grid',
+                          allowParallel = TRUE)
+  # Run with various different values of mtry from 1 to 15
+  tunegrid <- expand.grid(.mtry = (1:15))
+  modRF <- train(classe ~., data=training,
+                 method="rf",
+                 ntree = 150,
+                 trControl = RFControl,
+                 metric = 'Accuracy',
+                 tuneGrid = tunegrid,
+                 verbose="FALSE")
+})
+```
+```{r plotRFtune, cache=TRUE}
+plot(modRF)
+```
+  
+The model accuracy increases as mtry increases, however, after mtry=4 the marginal improvement in accuracy drops off significantly. Selecting mtry=4 will continue to provide high accuracy while reducing execution time and reducing the likelihood of over fitting.
+
+``` {r RandomForest, warning=FALSE, cache=TRUE}
+mbmRF <- system.time({
+
+RFControl <- trainControl(method='repeatedcv',
+                        number=10,
+                        repeats=3,
+                        search='grid',
+                        allowParallel = TRUE)
+# Run with mtry=8
+tunegrid <- expand.grid(.mtry = 4)
+modRF <- train(classe ~., data=training,
+               method="rf",
+               ntree = 150,
+               trControl = RFControl,
+               metric = 'Accuracy',
+               tuneGrid = tunegrid,
+               verbose="FALSE")
+})
+```
+  
+The final random forest model achieves a high accuracy of `r modRF$results[["Accuracy"]]` on the training data set.  
+
+## Stochastic Gradient Boosting Tree Model
+The GBM algorithm will assemble a prediction tree while boosting weak performing predictors at each level to force better fits. Like Random Forest model, GBM models are prone to over fitting. To minimize this problem, run an autotuning version using repeated cross validation in caret. (for more information on tuning GBM, refer to https://towardsdatascience.com/understanding-gradient-boosting-machines-9be756fe76ab and  https://www.listendata.com/2015/07/gbm-boosted-models-tuning-parameters.html)  
+``` {r boost, warning=FALSE, message=FALSE, cache=TRUE}
+mbmBoost <- system.time({
+
+  BoostControl <- trainControl(## 10-fold CV
+      method = "repeatedcv",
+      number = 10,
+      ## repeated ten times
+      repeats = 10,
+      allowParallel = TRUE)
+  modBoost <- train(classe ~., data=training, method="gbm", 
+                    trControl = BoostControl, 
+                    verbose="FALSE")
+})
+```
+```{r BoostInfo, cache=TRUE}
+print(modBoost)
+```
+  
+The optimization held shrinkage and n.minobsinnode constant and found the best model using n.trees = 150 and interaction.depth = 3. The final GBM model is also highly accurate at `r (modBoost$results[["Accuracy"]][9])`.  
+
+```{r boostsummary}
+summary(modBoost)
+```
+   
+NOTE: the GBM model allows checking which variables have the highest influence on the model. The graph above shows that the top four most influential variables carry significantly more weight than the others. The top variable is `r summary(modBoost)[["var"]][1]`, followed by `r summary(modBoost)[["var"]][2]`, `r summary(modBoost)[["var"]][3]`, and `r summary(modBoost)[["var"]][4]`. As mentioned above, the information about the data set is no longer accessible. It is possible that `r summary(modBoost)[["var"]][1]` is a variable that shouldn't be included in the models. If this is true it would call into question any of our models. However, we can't know that without more information.   
+  
+## Factor-Based Linear Discriminant Analysis
+LDA is a fast model-based approach that assumes a multivariate Gaussian distribution in the predictors and that they have the same covariances. Effectively, it creates a model that is a series of straight lines drawn through the data. This will be a fast model to train, but it could be highly inaccurate if the data does not meet the assumptions.   
+
+``` {r lda, warning=FALSE, cache=TRUE}
+mbmLDA <- system.time({
+
+LDAControl <- trainControl(allowParallel = TRUE)
+modLDA <- train(classe ~., data=training, 
+                method="lda", 
+                trControl = LDAControl, 
+                verbose="FALSE")
+})
+```
+  
+As expected, with an accuracy on the training data of `r modLDA$results[["Accuracy"]]`, the LDA method achieves far lower accuracy than either random forest or boosting.  
+  
+# Naive Bayes
+Naive Bayes is a model-based approach like LDA, however, it assumes that all of the predictors are independent. This method should give adequate results since the highly correlated variables were removed. It should have a lower computational cost than GBM and Random Forest.
+``` {r naivebayes, warning=FALSE, cache=TRUE}
+mbmNB <- system.time({
+
+NBControl <- trainControl(## 10-fold CV
+    method = "cv",
+    number = 10,
+    allowParallel = TRUE)
+modNB <- train(classe ~., data=training, 
+                method="nb",
+               trControl = NBControl
+               )
+})
+```
+```{r NBInfo, cache=TRUE}
+print(modNB)
+```
+The Naive Bayes model outperformed LDA with an accuracy of `r modNB$results[["Accuracy"]][2]` on the training set. The model is tuned using cross validation and found the most accurate approach was to set useKernal=TRUE.  
+  
+## Combining models
+For the final step, combine all of the models using model stacking and evaluate the accuracy on the training data set. 
+```{r combined models, warning=FALSE, cache=TRUE}
+mbmCombTrain <- system.time({
+
+  predCombTrain <- data.frame(predict(modRF, training),
+                              predict(modBoost, training), 
+                              predict(modLDA, training), 
+                              predict(modNB, training),
+                              classe = training$classe)
+  CombControl <- trainControl(method="cv", number=5, allowParallel = TRUE)
+  modRFComb <- train(classe ~., data=predCombTrain, 
+                     method="rf", 
+                     trControl = CombControl, 
+                     verbose="FALSE")
+})
+
+```
+The accuracy of the combined results (`r modRFComb$results[["Accuracy"]][1]`) was better than any of the individual models. However, the gains are marginal since the accuracy of RF and GBM were already very high. 
+
+# Validation
+Each of the models is applied to the validation data set. The accuracy of each is compared individually and the results are combined using model stacking.  
+
+```{r validation, warning=FALSE, cache=TRUE}
+predRFValid <- predict(modRF, validation)
+cmRFValid <- confusionMatrix(predRFValid, validation$classe)$overall
+
+predBoostValid <- predict(modBoost, validation)
+cmBoostValid <- confusionMatrix(predBoostValid, validation$classe)$overall
+
+predLDAValid <- predict(modLDA, validation)
+cmLDAValid <- confusionMatrix(predLDAValid, validation$classe)$overall
+
+predNBValid <- predict(modNB, validation)
+cmNBValid <- confusionMatrix(predNBValid, validation$classe)$overall
+
+mbmCombValid <- system.time({
+    dataCombValid <- data.frame(predRFValid,
+                                predBoostValid, 
+                                predLDAValid, 
+                                predNBValid, 
+                                classe = validation$classe)
+    CombControl <- trainControl(method="cv", number=5, allowParallel = TRUE)
+    modRFCombValid <- train(classe ~., data=dataCombValid, 
+                            method="rf", 
+                            trControl = CombControl, 
+                            verbose="FALSE")
+})
+predCombValid <- predict(modRFCombValid, validation)
+cmRFCombValid <- confusionMatrix(predCombValid, validation$classe)$overall
+
+```
+```{r results, warning=FALSE}
+timeRF <- mbmRF[["user.self"]] + mbmRF[["sys.self"]] + 
+  mbmRFtune[["user.self"]] + mbmRFtune[["sys.self"]]
+timeBoost <- mbmBoost[["user.self"]] + mbmBoost[["sys.self"]]
+timeLDA <- mbmLDA[["user.self"]] + mbmLDA[["sys.self"]]
+timeNB <- mbmNB[["user.self"]] + mbmNB[["sys.self"]]
+timeComb <- timeRF + timeBoost + timeLDA + timeNB + 
+  mbmCombValid[["user.self"]] + mbmCombValid[["sys.self"]]
+Results <- data.frame(RF = c(TrainingAccuracy=as.numeric(modRF$results[["Accuracy"]]), 
+                             ValidationAccuracy=cmRFValid[["Accuracy"]],
+                             TrainingTime=timeRF), 
+                      Boost = c(TrainingAccuracy=as.numeric(modBoost$results[["Accuracy"]][9]), 
+                                ValidationAccuracy=cmBoostValid[["Accuracy"]],
+                                TrainingTime=timeBoost), 
+                      LDA = c(TrainingAccuracy=as.numeric(modLDA$results[["Accuracy"]]), 
+                              ValidationAccuracy=cmLDAValid[["Accuracy"]],
+                              TrainingTime=timeLDA), 
+                      NB = c(TrainingAccuracy=as.numeric(modNB$results[["Accuracy"]][2]), 
+                             ValidationAccuracy=cmNBValid[["Accuracy"]],
+                             TrainingTime=timeNB), 
+                      Combined = c(TrainingAccuracy=as.numeric(modRFComb$results[["Accuracy"]][1]),
+                                   ValidationAccuracy=cmRFCombValid[["Accuracy"]],
+                                   TrainingTime=timeComb))
+
+ reactable(Results,
+           fullWidth = FALSE,
+           bordered = TRUE,
+           highlight = TRUE,
+           outlined = TRUE,
+           defaultColDef = colDef(format = colFormat(digits = 5)),
+           # rownames = list("Model", "Training Accuracy", "Validation Accuracy", "Training Time (s)"),
+           columns=list(.rownames = colDef(name = "Model", align = "right", minWidth=180),
+                        RF = colDef(name = "Random Forest**", align = "center", minWidth=110),
+                        Boost = colDef(name = "Stochastic Gradient Boosting", align = "center",
+                                       minWidth=110), 
+                        LDA = colDef(name = "Linear Discriminant Analysis", align = "center",
+                                     minWidth=110),
+                        NB = colDef(name = "Naive Bayes", align = "center", minWidth=110),
+                        Combined = colDef(name = "Combined (Model Stacking)***", align = "center",
+                                          minWidth=110)))
+```
+All of the models performed similarly well on the validation set and some even outperformed the results using training data. The random forest and GBM models performed well on the validation data indicating that concerns about over fitting are likely unfounded. The combined model stacking output continued to perform well on the validation set.
+
+A comparison of the relative time to complete model training indicates a strong inverse relationship between computational effort and model accuracy. The Naive Bayes method, however, performed well given the significantly lower computational effort than random forest and GBM. Additionally, the random forest and GBM both had very high accuracy meaning that the marginal accuracy gain from combining the results was small. However, combining the model-based predictors with the tree-based predictors may help further reduce the impact of over fitting when applied to new real-world data.  
+  
+NOTEs: * All of the timing data, in seconds, is a sum of the user time and system time. It is not the apparent time of execution. These values are highly platform dependent. They should only be used for comparison between prediction methods. ** The training time for random forest includes both the time to tune the model and the final modeling run. *** The Combined (Model Stacking) time is the time to combine the validation results plus the sum of the training time for all of the constituent models.
+  
+
+```{r cleanup}
+stopCluster(cluster)
+registerDoSEQ()
+```
