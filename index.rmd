@@ -4,8 +4,7 @@ author: "Darrell Gerber"
 output:
   html_document: 
     keep_md: yes
-    fig_width: 5
-    fig_height: 3
+
 ---
 
 
@@ -49,6 +48,9 @@ above is inaccessible. Therefore, we are limited to the information
 available in the data files to understand the data.
 
 NOTE TO REVIEWERS: Some of the prediction methods used are computational expensive. To cut down on computation time and still allow for model tuning, parallel processing is enabled. For more information on using parallel processing for this project and the impacts, refer to https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md. 
+
+Note: Github repository --> https://github.com/dgitall/MachineLearningFinalProj 
+  
 ```{r parallel, message=FALSE}
 # Setup parallel processing
 library(parallel)

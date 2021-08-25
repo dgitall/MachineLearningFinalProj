@@ -4,8 +4,7 @@ author: "Darrell Gerber"
 output:
   html_document: 
     keep_md: yes
-    fig_width: 5
-    fig_height: 3
+
 ---
 
 
@@ -41,6 +40,9 @@ above is inaccessible. Therefore, we are limited to the information
 available in the data files to understand the data.
 
 NOTE TO REVIEWERS: Some of the prediction methods used are computational expensive. To cut down on computation time and still allow for model tuning, parallel processing is enabled. For more information on using parallel processing for this project and the impacts, refer to https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md. 
+
+Note: Github repository --> https://github.com/dgitall/MachineLearningFinalProj 
+  
 
 ```r
 # Setup parallel processing
@@ -453,7 +455,7 @@ mbmCombTrain <- system.time({
                      verbose="FALSE")
 })
 ```
-The accuracy of the combined results (0.9997816) was better than any of the individual models. However, the gains are marginal since the accuracy of RF and GBM were already very high. 
+The accuracy of the combined results (0.9997573) was better than any of the individual models. However, the gains are marginal since the accuracy of RF and GBM were already very high. 
 
 # Validation
 Each of the models is applied to the validation data set. The accuracy of each is compared individually and the results are combined using model stacking.  
@@ -532,7 +534,7 @@ Results <- data.frame(RF = c(TrainingAccuracy=as.numeric(modRF$results[["Accurac
 
 ```{=html}
 <div id="htmlwidget-c29479615802350717f3" class="reactable html-widget" style="width:auto;height:auto;"></div>
-<script type="application/json" data-for="htmlwidget-c29479615802350717f3">{"x":{"tag":{"name":"Reactable","attribs":{"data":{".rownames":["TrainingAccuracy","ValidationAccuracy","TrainingTime"],"RF":[0.996165900877929,0.997281223449448,31.35],"Boost":[0.987988590912919,0.988105352591334,31.31],"LDA":[0.685753139357788,0.676805437553101,1.55],"NB":[0.767564070822563,0.771282922684792,1.73],"Combined":[0.999781553391623,0.997621070518267,69.91]},"columns":[{"accessor":".rownames","name":"Model","type":"character","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"sortable":false,"filterable":false,"minWidth":180,"align":"right"},{"accessor":"RF","name":"Random Forest**","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Boost","name":"Stochastic Gradient Boosting","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"LDA","name":"Linear Discriminant Analysis","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"NB","name":"Naive Bayes","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Combined","name":"Combined (Model Stacking)***","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"}],"defaultPageSize":10,"paginationType":"numbers","showPageInfo":true,"minRows":1,"highlight":true,"outlined":true,"bordered":true,"inline":true,"dataKey":"ee76c671a0c7493b2a9f5c7a86505178","key":"ee76c671a0c7493b2a9f5c7a86505178"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+<script type="application/json" data-for="htmlwidget-c29479615802350717f3">{"x":{"tag":{"name":"Reactable","attribs":{"data":{".rownames":["TrainingAccuracy","ValidationAccuracy","TrainingTime"],"RF":[0.996165900877929,0.997281223449448,27.93],"Boost":[0.987988590912919,0.988105352591334,33.66],"LDA":[0.685753139357788,0.676805437553101,2.11],"NB":[0.767564070822563,0.771282922684792,2.18],"Combined":[0.999757311005946,0.997621070518267,72.18]},"columns":[{"accessor":".rownames","name":"Model","type":"character","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"sortable":false,"filterable":false,"minWidth":180,"align":"right"},{"accessor":"RF","name":"Random Forest**","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Boost","name":"Stochastic Gradient Boosting","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"LDA","name":"Linear Discriminant Analysis","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"NB","name":"Naive Bayes","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Combined","name":"Combined (Model Stacking)***","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"}],"defaultPageSize":10,"paginationType":"numbers","showPageInfo":true,"minRows":1,"highlight":true,"outlined":true,"bordered":true,"inline":true,"dataKey":"1fe854a6c3a017a4d9fc658199889037","key":"1fe854a6c3a017a4d9fc658199889037"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
 ```
 All of the models performed similarly well on the validation set and some even outperformed the results using training data. The random forest and GBM models performed well on the validation data indicating that concerns about over fitting are likely unfounded. The combined model stacking output continued to perform well on the validation set.
 
