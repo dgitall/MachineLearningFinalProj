@@ -212,44 +212,35 @@ print(cmRFComb)
 
 
 print("Starting Validation")
-predRFValid <- predict(modRF, validation)
-cmRFValid <- confusionMatrix(predRFValid, validation$classe)$overall
-print("Random Forest accuracy on validation set")
-print(cmRFValid[1])
-
-predBoostValid <- predict(modBoost, validation)
-cmBoostValid <- confusionMatrix(predBoostValid, validation$classe)$overall
-print("Boost accuracy on validation set")
-print(cmBoostValid[1])
-
-predLDAValid <- predict(modLDA, validation)
-cmLDAValid <- confusionMatrix(predLDAValid, validation$classe)$overall
-print("LDA accuracy on validation set")
-print(cmLDAValid[1])
-
-predNBValid <- predict(modNB, validation)
-cmNBValid <- confusionMatrix(predNBValid, validation$classe)$overall
-print("Naive Bayes accuracy on validation set")
-print(cmNBValid[1])
-
-mbmCombValid <- system.time({
+FinalModel <- function(x) {
+    predRFValid <- predict(modRF, x)
+    cmRFValid <- confusionMatrix(predRFValid, validation$classe)$overall
     
-    predCombValid <- data.frame(predRFValid,
-                                predBoostValid, 
-                                predLDAValid, 
-                                predNBValid, 
-                                classe = validation$classe)
-    CombControl <- trainControl(method="cv", number=5, allowParallel = TRUE)
-    modRFCombValid <- train(classe ~., data=predCombValid, 
-                            method="rf", 
-                            trControl = CombControl, 
-                            verbose="FALSE")
-})
-predRFCombValid <- predict(modRFCombValid, validation)
-cmRFCombValid <- confusionMatrix(predRFCombValid, validation$classe)$overall
-print("Model Stacking accuracy on validation set")
-print(cmRFCombValid[1])
-
+    predBoostValid <- predict(modBoost, x)
+    cmBoostValid <- confusionMatrix(predBoostValid, validation$classe)$overall
+    
+    predLDAValid <- predict(modLDA, x)
+    cmLDAValid <- confusionMatrix(predLDAValid, validation$classe)$overall
+    
+    predNBValid <- predict(modNB, x)
+    cmNBValid <- confusionMatrix(predNBValid, validation$classe)$overall
+    
+    mbmCombValid <- system.time({
+        dataCombValid <- data.frame(predRFValid,
+                                    predBoostValid, 
+                                    predLDAValid, 
+                                    predNBValid, 
+                                    classe = x$classe)
+        CombControl <- trainControl(method="cv", number=5, allowParallel = TRUE)
+        modRFCombValid <- train(classe ~., data=dataCombValid, 
+                                method="rf", 
+                                trControl = CombControl, 
+                                verbose="FALSE")
+    })
+    predCombValid <- predict(modRFCombValid, x)
+    cmRFCombValid <- confusionMatrix(predCombValid, x$classe)$overall
+}
+FinalModel(validation)
 Results <- data.frame(RF = c(TrainingAccuracy=as.numeric(modRF$results[["Accuracy"]]), 
                              Validation=AccuracycmRFValid[["Accuracy"]],
                              TrainingTime=mbmRF[["user.self"]] + mbmRF[["sys.self"]]), 

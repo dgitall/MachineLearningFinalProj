@@ -1,7 +1,6 @@
 ---
 title: "Practical Machine Learning: Final Project "
 author: "Darrell Gerber"
-date: "8/25/2021"
 output:
   html_document: 
     keep_md: yes
@@ -374,10 +373,6 @@ A comparison of the relative time to complete model training indicates a strong 
   
 NOTEs: * All of the timing data, in seconds, is a sum of the user time and system time. It is not the apparent time of execution. These values are highly platform dependent. They should only be used for comparison between prediction methods. ** The training time for random forest includes both the time to tune the model and the final modeling run. *** The Combined (Model Stacking) time is the time to combine the validation results plus the sum of the training time for all of the constituent models.
   
-  
-# Testing Data Sets
-The final quiz requires applying the final combined model to each of the 20 rows of data provided in the dataTesting data set for the problem. 
-
 ```{r cleanup}
 stopCluster(cluster)
 registerDoSEQ()
