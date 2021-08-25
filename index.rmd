@@ -1,7 +1,7 @@
 ---
 title: "Practical Machine Learning: Final Project "
 author: "Darrell Gerber"
-date: "8/24/2021"
+date: "8/25/2021"
 output:
   html_document: 
     keep_md: yes
@@ -50,7 +50,7 @@ above is inaccessible. Therefore, we are limited to the information
 available in the data files to understand the data.
 
 NOTE TO REVIEWERS: Some of the prediction methods used are computational expensive. To cut down on computation time and still allow for model tuning, parallel processing is enabled. For more information on using parallel processing for this project and the impacts, refer to https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md. 
-```{r parallel}
+```{r parallel, message=FALSE}
 # Setup parallel processing
 library(parallel)
 library(doParallel)
