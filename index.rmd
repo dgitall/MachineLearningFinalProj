@@ -3,8 +3,10 @@ title: "Practical Machine Learning: Final Project "
 author: "Darrell Gerber"
 date: "8/24/2021"
 output:
-  html_document: default
-  pdf_document: default
+  html_document: 
+    keep_md: yes
+    fig_width: 5
+    fig_height: 3
 ---
 
 
@@ -88,16 +90,7 @@ dataTesting <- read.csv(destFile)
 
 ```
   
-Unfortunately, the variable we are going to predict, 'classe', is not present in the testing data set loaded above. This prevents checking the accuracy of the model so we will not
-use that data set.
-
-```{r testingnames}
-ifelse("classe" %in% names(dataTesting), 
-       print("'classe' is in Testing data set"),
-       print("'classe' is NOT found in Testing data set"))
-```
-  
-Instead, split the dataTraining data set into a training and validation sets. 
+Split the dataTraining data set into a training and validation sets. 
 
 ```{r trainvalidation, cache=TRUE}
 inTrain <- createDataPartition(y = dataTraining$classe,
@@ -122,6 +115,10 @@ training <- training[,few_bad]
 validation <- validation[,few_bad]
 dimBad <- dim(training)[2]
 ```
+```{r trackingremoved }
+# Keep track of the columns removed so we can apply the same the testing data set
+colRemoved <- bad_count > 0.7*length(training$classe)
+```
   
 This reduced the variables from `r dimStart` to `r dimBad`.  
 
@@ -130,8 +127,11 @@ outcome. These include user related variables and timestamps (the selection must
 ```{r removingvariables, cache=TRUE}
 
 table(training$new_window)
-training <- training[,-c(1, 2, 3, 4, 5, 6)]
-validation <- validation[,-c(1, 2, 3, 4, 5, 6)]
+unneeded <- c(1, 2, 3, 4, 5, 6)
+training <- training[,-unneeded]
+validation <- validation[,-unneeded]
+
+colRemoved <- c(unneeded, colRemoved)
 ```
   
 Correlation between variables can cause many of our models to perform poorly. Plot the correlation matrix to see if we have any highly correlated predictors. 
@@ -150,6 +150,8 @@ print("Indices of highly correlated variables to remove")
 removeCorr
 training <- training[,-removeCorr]
 validation <- validation[,-removeCorr]
+
+colRemoved <- c(removeCorr, colRemoved)
 dimAfterCorr <- dim(training)
 ```
   
@@ -372,6 +374,9 @@ A comparison of the relative time to complete model training indicates a strong 
   
 NOTEs: * All of the timing data, in seconds, is a sum of the user time and system time. It is not the apparent time of execution. These values are highly platform dependent. They should only be used for comparison between prediction methods. ** The training time for random forest includes both the time to tune the model and the final modeling run. *** The Combined (Model Stacking) time is the time to combine the validation results plus the sum of the training time for all of the constituent models.
   
+  
+# Testing Data Sets
+The final quiz requires applying the final combined model to each of the 20 rows of data provided in the dataTesting data set for the problem. 
 
 ```{r cleanup}
 stopCluster(cluster)
