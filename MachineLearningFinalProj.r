@@ -36,8 +36,6 @@ if(!file.exists(destFile)) {
 
 dataTesting <- read.csv(destFile)
 
-names(dataTesting)
-
 inTrain <- createDataPartition(y = dataTraining$classe,
                                p = 0.7,
                                list = FALSE)
@@ -53,19 +51,22 @@ bad_count <-sapply(training, function(x) sum(is.na(x) | x == "" | x == "#DIV/0!"
 print(bad_count)
 # Determine which columns are more than half NAs and remove them from the training
 # and validation sets (only look at the training set but change both)
-dim(training)
+
 few_bad <- bad_count <= 0.7*length(training$classe)
 training <- training[,few_bad]
 validation <- validation[,few_bad]
-dim(training)
+dataQuiz <- dataTesting[,few_bad]
+
 # This reduced the possible predictors from 160 to 60.
 
 # Remove some of the variables that we don't want to try to use to predict the
 # outcome. These include the user and timestamps (this isn't time series data).
 # Also, remove the new_window variable because it has very little variation
 table(training$new_window)
-training <- training[,-c(1, 2, 3, 4, 5, 6)]
-validation <- validation[,-c(1, 2, 3, 4, 5, 6)]
+unneeded <- c(1, 2, 3, 4, 5, 6)
+training <- training[,-unneeded]
+validation <- validation[,-unneeded]
+dataQuiz <- dataQuiz[,-unneeded]
 
 # Look at the correlation matrix
 corr <- cor(training[,-54])
@@ -82,6 +83,7 @@ print("Indices of highly correlated variables to remove")
 removeCorr
 training <- training[,-removeCorr]
 validation <- validation[,-removeCorr]
+dataQuiz <- dataQuiz[,-removeCorr]
 dim(training)
 
 # Set the remaining predictors to numeric
@@ -112,7 +114,7 @@ mbmRFtune <- system.time({
 plot(modRF)
 # Use the mtry = 8 as picked out from the approach above where we don't get additional 
 # accuracy gains
-mbmRF <- system.time({
+mbmRF<- system.time({
     
     RFControl <- trainControl(method='repeatedcv',
                               number=10,
@@ -147,10 +149,6 @@ mbmBoost <- system.time({
                       trControl = BoostControl, 
                       verbose="FALSE")
 })
-# modBoost <- train(classe ~., data=training, method="gbm", 
-#                   shrinkage = 0.01,
-#                   trControl = BoostControl, 
-#                   verbose="FALSE")
 cmBoost <- confusionMatrix.train(modBoost)
 print(modBoost)
 print(cmBoost)
@@ -166,9 +164,7 @@ mbmLDA <- system.time({
                     trControl = LDAControl, 
                     verbose="FALSE")
 })
-
 cmLDA <- confusionMatrix.train(modLDA)
-print(cmLDA)
 
 
 # Naive Bayes
@@ -182,9 +178,7 @@ mbmNB <- system.time({
         allowParallel = TRUE)
     modNB <- train(classe ~., data=training, 
                    method="nb",
-                   trControl = NBControl,
-                   
-                   verbose="FALSE"
+                   trControl = NBControl
     )
 })
 
@@ -212,50 +206,130 @@ print(cmRFComb)
 
 
 print("Starting Validation")
-FinalModel <- function(x) {
-    predRFValid <- predict(modRF, x)
-    cmRFValid <- confusionMatrix(predRFValid, validation$classe)$overall
-    
-    predBoostValid <- predict(modBoost, x)
-    cmBoostValid <- confusionMatrix(predBoostValid, validation$classe)$overall
-    
-    predLDAValid <- predict(modLDA, x)
-    cmLDAValid <- confusionMatrix(predLDAValid, validation$classe)$overall
-    
-    predNBValid <- predict(modNB, x)
-    cmNBValid <- confusionMatrix(predNBValid, validation$classe)$overall
-    
-    mbmCombValid <- system.time({
-        dataCombValid <- data.frame(predRFValid,
-                                    predBoostValid, 
-                                    predLDAValid, 
-                                    predNBValid, 
-                                    classe = x$classe)
-        CombControl <- trainControl(method="cv", number=5, allowParallel = TRUE)
-        modRFCombValid <- train(classe ~., data=dataCombValid, 
-                                method="rf", 
-                                trControl = CombControl, 
-                                verbose="FALSE")
-    })
-    predCombValid <- predict(modRFCombValid, x)
-    cmRFCombValid <- confusionMatrix(predCombValid, x$classe)$overall
-}
-FinalModel(validation)
+predRFValid <- predict(modRF, validation)
+cmRFValid <- confusionMatrix(predRFValid, validation$classe)$overall
+
+predBoostValid <- predict(modBoost, validation)
+cmBoostValid <- confusionMatrix(predBoostValid, validation$classe)$overall
+
+predLDAValid <- predict(modLDA, validation)
+cmLDAValid <- confusionMatrix(predLDAValid, validation$classe)$overall
+
+predNBValid <- predict(modNB, validation)
+cmNBValid <- confusionMatrix(predNBValid, validation$classe)$overall
+
+mbmCombValid <- system.time({
+    dataCombValid <- data.frame(predRFValid,
+                                predBoostValid, 
+                                predLDAValid, 
+                                predNBValid, 
+                                classe = validation$classe)
+    CombControl <- trainControl(method="cv", number=5, allowParallel = TRUE)
+    modRFCombValid <- train(classe ~., data=dataCombValid, 
+                            method="rf", 
+                            trControl = CombControl, 
+                            verbose="FALSE")
+})
+predCombValid <- predict(modRFCombValid, validation)
+cmRFCombValid <- confusionMatrix(predCombValid, validation$classe)$overall
+
+
+timeRF <- mbmRF[["user.self"]] + mbmRF[["sys.self"]] + 
+    mbmRFtune[["user.self"]] + mbmRFtune[["sys.self"]]
+timeBoost <- mbmBoost[["user.self"]] + mbmBoost[["sys.self"]]
+timeLDA <- mbmLDA[["user.self"]] + mbmLDA[["sys.self"]]
+timeNB <- mbmNB[["user.self"]] + mbmNB[["sys.self"]]
+timeComb <- timeRF + timeBoost + timeLDA + timeNB + 
+    mbmCombValid[["user.self"]] + mbmCombValid[["sys.self"]]
 Results <- data.frame(RF = c(TrainingAccuracy=as.numeric(modRF$results[["Accuracy"]]), 
-                             Validation=AccuracycmRFValid[["Accuracy"]],
-                             TrainingTime=mbmRF[["user.self"]] + mbmRF[["sys.self"]]), 
+                             ValidationAccuracy=cmRFValid[["Accuracy"]],
+                             TrainingTime=timeRF), 
                       Boost = c(TrainingAccuracy=as.numeric(modBoost$results[["Accuracy"]][9]), 
                                 ValidationAccuracy=cmBoostValid[["Accuracy"]],
-                                TrainingTime=mbmBoost[["user.self"]] + mbmBoost[["sys.self"]]), 
+                                TrainingTime=timeBoost), 
                       LDA = c(TrainingAccuracy=as.numeric(modLDA$results[["Accuracy"]]), 
                               ValidationAccuracy=cmLDAValid[["Accuracy"]],
-                              TrainingTime=mbmLDA[["user.self"]] + mbmLDA[["sys.self"]]), 
+                              TrainingTime=timeLDA), 
                       NB = c(TrainingAccuracy=as.numeric(modNB$results[["Accuracy"]][2]), 
                              ValidationAccuracy=cmNBValid[["Accuracy"]],
-                             TrainingTime=mbmNB[["user.self"]] + mbmNB[["sys.self"]]), 
-                      Combined = c(TrainingAccuracy=as.numeric(modRFComb$results[["Accuracy"]][1]), 
+                             TrainingTime=timeNB), 
+                      Combined = c(TrainingAccuracy=as.numeric(modRFComb$results[["Accuracy"]][1]),
                                    ValidationAccuracy=cmRFCombValid[["Accuracy"]],
-                                   TrainingTime=mbmCombTrain[["user.self"]] + mbmCombTrain[["sys.self"]]))
+                                   TrainingTime=timeComb))
+
+library(reactable)
+reactable(Results,
+          fullWidth = FALSE,
+          bordered = TRUE,
+          highlight = TRUE,
+          outlined = TRUE,
+          defaultColDef = colDef(format = colFormat(digits = 5)),
+          # rownames = list("Model", "Training Accuracy", "Validation Accuracy", "Training Time (s)"),
+          columns=list(.rownames = colDef(name = "Model", align = "right", minWidth=180),
+                       RF = colDef(name = "Random Forest**", align = "center", minWidth=110),
+                       Boost = colDef(name = "Stochastic Gradient Boosting", align = "center",
+                                      minWidth=110), 
+                       LDA = colDef(name = "Linear Discriminant Analysis", align = "center",
+                                    minWidth=110),
+                       NB = colDef(name = "Naive Bayes", align = "center", minWidth=110),
+                       Combined = colDef(name = "Combined (Model Stacking)***", align = "center",
+                                         minWidth=110)))
+
+
+predRFQuiz<- predict(modRF, dataQuiz)
+predBoostQuiz <- predict(modBoost, dataQuiz)
+predLDAQuiz <- predict(modLDA, dataQuiz)
+predNBQuiz<- predict(modNB, dataQuiz)
+dataCombQuiz <- data.frame(predRFQuiz,
+                           predBoostQuiz, 
+                           predLDAQuiz, 
+                           predNBQuiz)
+predCombQuiz <- predict(modRFComb, dataCombQuiz)
+print(predCombQuiz)
+
+library("mlbench")
+library("randomForest")
+library("nnet")
+library(caretEnsemble)
+my_control <- trainControl(
+    method = "repeatedcv",
+    number = 10,
+    ## repeated ten times
+    repeats = 10,
+    savePredictions="final",
+    classProbs=TRUE,
+    index=createResample(training$classe, 25),
+    allowParallel = TRUE
+)
+model_list_big <- caretList(
+    classe~., data=training,
+    trControl=my_control,
+    metric="Accuracy",
+    methodList=c("rf", "gbm", "lda", "nb"),
+    tuneList=list(
+        rf1=caretModelSpec(method="rf", tuneGrid=data.frame(.mtry=4)),
+        gbm=caretModelSpec(method="gbm"),
+        lda=caretModelSpec(method="lda"),
+        nb=caretModelSpec(method="nb")
+    )
+)
+
+glm_ensemble <- caretStack(
+    model_list_big,
+    method="glm",
+    metric="Accuracy",
+    trControl=trainControl(
+        method="cv",
+        number=10,
+        # savePredictions="final",
+        # classProbs=TRUE,
+    )
+)
+model_preds2 <- model_preds
+model_preds2$ensemble <- predict(glm_ensemble, newdata=validation, type="prob")
+CF <- coef(glm_ensemble$ens_model$finalModel)[-1]
+colAUC(model_preds2, validation$classe)
+
 
 stopCluster(cluster)
 registerDoSEQ()

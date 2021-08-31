@@ -119,7 +119,7 @@ colRemoved <- bad_count > 0.7*length(training$classe)
 This reduced the variables from 160 to 60.  
 
 We can also remove some of the variables that we don't want to use to predict the
-outcome. These include user related variables and timestamps (the selection must be user agnostic and this isn't time series data).  As illustrated below, the new_window variable has very little variation so it can be removed from modeling, too. 
+outcome. These include user related variables and timestamps (the selection must be user agnostic and this isn't time series data).  As illustrated below, the new_window variable has very little variation so it can be removed from modeling, too. Remove the related num_window variable as well because it isn't clearly related to the instrument measurements. 
 
 ```r
 table(training$new_window)
@@ -132,7 +132,7 @@ table(training$new_window)
 ```
 
 ```r
-unneeded <- c(1, 2, 3, 4, 5, 6)
+unneeded <- c(1, 2, 3, 4, 5, 6, 7)
 training <- training[,-unneeded]
 validation <- validation[,-unneeded]
 
@@ -142,7 +142,7 @@ colRemoved <- c(unneeded, colRemoved)
 Correlation between variables can cause many of our models to perform poorly. Plot the correlation matrix to see if we have any highly correlated predictors. 
 
 ```r
-corr <- cor(training[,-54])
+corr <- cor(training[,-length(names(training))])
 corrplot(corr, type="upper", order="hclust", 
          sig.level = 0.01, insig = "blank")
 ```
@@ -152,7 +152,7 @@ corrplot(corr, type="upper", order="hclust",
 A large number of variables have a low correlation. However, there are a few highly correlated variables. Find those variables with a high level of correlation to other variables in the data set and remove them. A cutoff of 0.9 will only remove those with the most extreme correlation. 
 
 ```r
-dimb4Corr <- dim(training)
+dimb4Corr <- dim(training)[2]
 removeCorr <- findCorrelation(corr, cutoff = 0.9)
 print("Indices of highly correlated variables to remove")
 ```
@@ -166,7 +166,7 @@ removeCorr
 ```
 
 ```
-## [1] 11  2 10  9 32 34 19
+## [1] 10  1  9  8 31 33 18
 ```
 
 ```r
@@ -174,10 +174,10 @@ training <- training[,-removeCorr]
 validation <- validation[,-removeCorr]
 
 colRemoved <- c(removeCorr, colRemoved)
-dimAfterCorr <- dim(training)
+dimAfterCorr <- dim(training)[2]
 ```
   
-This removes another 0, 7 variables, leaving a final data set of 1.3736\times 10^{4}, 46 variables we will use to predict the variable 'classe'.  
+This removes another 7 variables, leaving a final data set of 45 variables we will use to predict the variable 'classe'.  
 
 # Modeling
 The general approach is to individually evaluate several unrelated modeling methods and then combine their results using model stacking. The 'classe' variable is a factor with 5 possible values, therefore, we will select prediction models appropriate for classification problems. Random Forest and Generalized Boosting models, both tree-based models, are used along with Linear Discrete Analysis and Naive Bayes, both model-based methods. There are many, many modeling options so this is only a small sample of options.   
@@ -213,7 +213,7 @@ plot(modRF)
 
 ![](index_files/figure-html/plotRFtune-1.png)<!-- -->
   
-The model accuracy increases as mtry increases, however, after mtry=4 the marginal improvement in accuracy drops off significantly. Selecting mtry=4 will continue to provide high accuracy while reducing execution time and reducing the likelihood of over fitting.
+The model accuracy increases as mtry increases, however, after mtry=5 the marginal improvement in accuracy drops off significantly. Selecting mtry=5 will continue to provide high accuracy while reducing execution time and reducing the likelihood of over fitting.
 
 
 ```r
@@ -225,7 +225,7 @@ RFControl <- trainControl(method='repeatedcv',
                         search='grid',
                         allowParallel = TRUE)
 # Run with mtry=8
-tunegrid <- expand.grid(.mtry = 4)
+tunegrid <- expand.grid(.mtry = 5)
 modRF <- train(classe ~., data=training,
                method="rf",
                ntree = 150,
@@ -236,7 +236,7 @@ modRF <- train(classe ~., data=training,
 })
 ```
   
-The final random forest model achieves a high accuracy of 0.9961659 on the training data set.  
+The final random forest model achieves a high accuracy of 0.9930357 on the training data set.  
 
 ## Stochastic Gradient Boosting Tree Model
 The GBM algorithm will assemble a prediction tree while boosting weak performing predictors at each level to force better fits. Like Random Forest model, GBM models are prone to over fitting. To minimize this problem, run an autotuning version using repeated cross validation in caret. (for more information on tuning GBM, refer to https://towardsdatascience.com/understanding-gradient-boosting-machines-9be756fe76ab and  https://www.listendata.com/2015/07/gbm-boosted-models-tuning-parameters.html)  
@@ -258,24 +258,24 @@ mbmBoost <- system.time({
 
 ```
 ## Iter   TrainDeviance   ValidDeviance   StepSize   Improve
-##      1        1.6094             nan     0.1000    0.2245
-##      2        1.4732             nan     0.1000    0.1555
-##      3        1.3784             nan     0.1000    0.1171
-##      4        1.3058             nan     0.1000    0.1080
-##      5        1.2407             nan     0.1000    0.0782
-##      6        1.1911             nan     0.1000    0.0836
-##      7        1.1403             nan     0.1000    0.0718
-##      8        1.0960             nan     0.1000    0.0633
-##      9        1.0569             nan     0.1000    0.0613
-##     10        1.0174             nan     0.1000    0.0535
-##     20        0.7220             nan     0.1000    0.0301
-##     40        0.4585             nan     0.1000    0.0081
-##     60        0.3344             nan     0.1000    0.0067
-##     80        0.2519             nan     0.1000    0.0033
-##    100        0.1987             nan     0.1000    0.0038
-##    120        0.1584             nan     0.1000    0.0022
-##    140        0.1278             nan     0.1000    0.0009
-##    150        0.1143             nan     0.1000    0.0018
+##      1        1.6094             nan     0.1000    0.2152
+##      2        1.4765             nan     0.1000    0.1494
+##      3        1.3846             nan     0.1000    0.1128
+##      4        1.3153             nan     0.1000    0.0930
+##      5        1.2563             nan     0.1000    0.0939
+##      6        1.2001             nan     0.1000    0.0712
+##      7        1.1556             nan     0.1000    0.0659
+##      8        1.1147             nan     0.1000    0.0624
+##      9        1.0769             nan     0.1000    0.0485
+##     10        1.0468             nan     0.1000    0.0618
+##     20        0.8051             nan     0.1000    0.0309
+##     40        0.5532             nan     0.1000    0.0118
+##     60        0.4271             nan     0.1000    0.0063
+##     80        0.3432             nan     0.1000    0.0052
+##    100        0.2828             nan     0.1000    0.0025
+##    120        0.2391             nan     0.1000    0.0021
+##    140        0.2050             nan     0.1000    0.0025
+##    150        0.1913             nan     0.1000    0.0024
 ```
 
 ```r
@@ -286,24 +286,24 @@ print(modBoost)
 ## Stochastic Gradient Boosting 
 ## 
 ## 13737 samples
-##    46 predictor
+##    45 predictor
 ##     5 classes: 'A', 'B', 'C', 'D', 'E' 
 ## 
 ## No pre-processing
 ## Resampling: Cross-Validated (10 fold, repeated 10 times) 
-## Summary of sample sizes: 12365, 12363, 12363, 12363, 12363, 12364, ... 
+## Summary of sample sizes: 12363, 12363, 12363, 12365, 12364, 12364, ... 
 ## Resampling results across tuning parameters:
 ## 
 ##   interaction.depth  n.trees  Accuracy   Kappa    
-##   1                   50      0.7457448  0.6773588
-##   1                  100      0.8257482  0.7793843
-##   1                  150      0.8639809  0.8278573
-##   2                   50      0.8838320  0.8528890
-##   2                  100      0.9378686  0.9213766
-##   2                  150      0.9631795  0.9534154
-##   3                   50      0.9311055  0.9127750
-##   3                  100      0.9725268  0.9652414
-##   3                  150      0.9879886  0.9848067
+##   1                   50      0.7403370  0.6709725
+##   1                  100      0.8131394  0.7636023
+##   1                  150      0.8462623  0.8054677
+##   2                   50      0.8524138  0.8130557
+##   2                  100      0.9036400  0.8780500
+##   2                  150      0.9278225  0.9086646
+##   3                   50      0.8917308  0.8629011
+##   3                  100      0.9385815  0.9222773
+##   3                  150      0.9583748  0.9473382
 ## 
 ## Tuning parameter 'shrinkage' was held constant at a value of 0.1
 ## 
@@ -313,7 +313,7 @@ print(modBoost)
 ##  3, shrinkage = 0.1 and n.minobsinnode = 10.
 ```
   
-The optimization held shrinkage and n.minobsinnode constant and found the best model using n.trees = 150 and interaction.depth = 3. The final GBM model is also highly accurate at 0.9879886.  
+The optimization held shrinkage and n.minobsinnode constant and found the best model using n.trees = 150 and interaction.depth = 3. The final GBM model is also highly accurate at 0.9583748.  
 
 
 ```r
@@ -323,56 +323,55 @@ summary(modBoost)
 ![](index_files/figure-html/boostsummary-1.png)<!-- -->
 
 ```
-##                                       var      rel.inf
-## num_window                     num_window 25.369277354
-## yaw_belt                         yaw_belt 10.593049583
-## pitch_forearm               pitch_forearm  8.343185162
-## magnet_dumbbell_z       magnet_dumbbell_z  6.372130746
-## magnet_belt_y               magnet_belt_y  4.237725462
-## magnet_dumbbell_y       magnet_dumbbell_y  4.066385881
-## gyros_belt_z                 gyros_belt_z  3.811490440
-## roll_forearm                 roll_forearm  3.654443139
-## pitch_belt                     pitch_belt  3.409248022
-## magnet_belt_z               magnet_belt_z  3.238221745
-## total_accel_belt         total_accel_belt  2.612400972
-## accel_forearm_x           accel_forearm_x  2.304232241
-## roll_dumbbell               roll_dumbbell  2.181046699
-## accel_dumbbell_z         accel_dumbbell_z  1.883578496
-## accel_dumbbell_y         accel_dumbbell_y  1.843779097
-## gyros_dumbbell_y         gyros_dumbbell_y  1.643002841
-## accel_forearm_z           accel_forearm_z  1.400626474
-## magnet_forearm_z         magnet_forearm_z  1.391463819
-## accel_dumbbell_x         accel_dumbbell_x  1.288562346
-## roll_arm                         roll_arm  0.978398117
-## gyros_belt_y                 gyros_belt_y  0.940546707
-## yaw_arm                           yaw_arm  0.937454035
-## magnet_dumbbell_x       magnet_dumbbell_x  0.916154430
-## magnet_belt_x               magnet_belt_x  0.881063861
-## magnet_arm_z                 magnet_arm_z  0.860465491
-## gyros_arm_y                   gyros_arm_y  0.775466438
-## magnet_arm_x                 magnet_arm_x  0.567333065
-## gyros_belt_x                 gyros_belt_x  0.517208211
-## magnet_arm_y                 magnet_arm_y  0.350246021
-## total_accel_dumbbell total_accel_dumbbell  0.311327928
-## pitch_dumbbell             pitch_dumbbell  0.278130761
-## total_accel_arm           total_accel_arm  0.259382421
-## accel_forearm_y           accel_forearm_y  0.243359015
-## accel_arm_x                   accel_arm_x  0.228566374
-## gyros_forearm_z           gyros_forearm_z  0.186353659
-## magnet_forearm_y         magnet_forearm_y  0.184156416
-## accel_arm_y                   accel_arm_y  0.172992508
-## total_accel_forearm   total_accel_forearm  0.133286606
-## pitch_arm                       pitch_arm  0.127471106
-## magnet_forearm_x         magnet_forearm_x  0.126248898
-## accel_arm_z                   accel_arm_z  0.116019378
-## yaw_dumbbell                 yaw_dumbbell  0.097120849
-## gyros_forearm_y           gyros_forearm_y  0.086443555
-## gyros_forearm_x           gyros_forearm_x  0.063141935
-## yaw_forearm                   yaw_forearm  0.010622193
-## gyros_arm_z                   gyros_arm_z  0.007189502
+##                                       var     rel.inf
+## yaw_belt                         yaw_belt 13.24206665
+## pitch_forearm               pitch_forearm  9.89196891
+## magnet_dumbbell_z       magnet_dumbbell_z  7.93769637
+## magnet_belt_y               magnet_belt_y  6.08988778
+## gyros_belt_z                 gyros_belt_z  5.54076974
+## pitch_belt                     pitch_belt  5.46265845
+## roll_forearm                 roll_forearm  5.34587465
+## magnet_dumbbell_y       magnet_dumbbell_y  4.90828509
+## magnet_belt_z               magnet_belt_z  4.84001987
+## roll_dumbbell               roll_dumbbell  3.14423131
+## accel_forearm_x           accel_forearm_x  2.43185613
+## total_accel_belt         total_accel_belt  2.31983956
+## magnet_forearm_z         magnet_forearm_z  2.24474124
+## accel_forearm_z           accel_forearm_z  2.13915761
+## accel_dumbbell_y         accel_dumbbell_y  2.03499211
+## magnet_dumbbell_x       magnet_dumbbell_x  1.83546965
+## gyros_dumbbell_y         gyros_dumbbell_y  1.82697130
+## yaw_arm                           yaw_arm  1.70726241
+## accel_dumbbell_x         accel_dumbbell_x  1.63633946
+## magnet_arm_z                 magnet_arm_z  1.41755854
+## magnet_belt_x               magnet_belt_x  1.20786266
+## accel_dumbbell_z         accel_dumbbell_z  1.16070762
+## roll_arm                         roll_arm  1.09764482
+## gyros_arm_y                   gyros_arm_y  1.06145926
+## gyros_belt_y                 gyros_belt_y  1.04714447
+## magnet_arm_y                 magnet_arm_y  0.95002020
+## magnet_arm_x                 magnet_arm_x  0.85152091
+## total_accel_dumbbell total_accel_dumbbell  0.84719829
+## total_accel_forearm   total_accel_forearm  0.68485622
+## magnet_forearm_x         magnet_forearm_x  0.66301361
+## gyros_belt_x                 gyros_belt_x  0.63940238
+## accel_arm_x                   accel_arm_x  0.56174246
+## pitch_dumbbell             pitch_dumbbell  0.41582712
+## accel_arm_y                   accel_arm_y  0.35563668
+## accel_arm_z                   accel_arm_z  0.35064256
+## magnet_forearm_y         magnet_forearm_y  0.33799541
+## accel_forearm_y           accel_forearm_y  0.30384940
+## yaw_dumbbell                 yaw_dumbbell  0.29137027
+## total_accel_arm           total_accel_arm  0.23731537
+## gyros_forearm_z           gyros_forearm_z  0.23317518
+## gyros_forearm_y           gyros_forearm_y  0.18605266
+## gyros_forearm_x           gyros_forearm_x  0.16482799
+## pitch_arm                       pitch_arm  0.16012098
+## yaw_forearm                   yaw_forearm  0.15185248
+## gyros_arm_z                   gyros_arm_z  0.04111416
 ```
    
-NOTE: the GBM model allows checking which variables have the highest influence on the model. The graph above shows that the top four most influential variables carry significantly more weight than the others. The top variable is num_window, followed by yaw_belt, pitch_forearm, and magnet_dumbbell_z. As mentioned above, the information about the data set is no longer accessible. It is possible that num_window is a variable that shouldn't be included in the models. If this is true it would call into question any of our models. However, we can't know that without more information.   
+NOTE: the GBM model allows checking which variables have the highest influence on the model. The graph above shows that the top three most influential variables carry significantly more weight than the others. The top variable is yaw_belt, followed by pitch_forearm, and magnet_dumbbell_z.      
   
 ## Factor-Based Linear Discriminant Analysis
 LDA is a fast model-based approach that assumes a multivariate Gaussian distribution in the predictors and that they have the same covariances. Effectively, it creates a model that is a series of straight lines drawn through the data. This will be a fast model to train, but it could be highly inaccurate if the data does not meet the assumptions.   
@@ -389,7 +388,7 @@ modLDA <- train(classe ~., data=training,
 })
 ```
   
-As expected, with an accuracy on the training data of 0.6857531, the LDA method achieves far lower accuracy than either random forest or boosting.  
+As expected, with an accuracy on the training data of 0.6754873, the LDA method achieves far lower accuracy than either random forest or boosting.  
   
 # Naive Bayes
 Naive Bayes is a model-based approach like LDA, however, it assumes that all of the predictors are independent. This method should give adequate results since the highly correlated variables were removed. It should have a lower computational cost than GBM and Random Forest.
@@ -416,17 +415,17 @@ print(modNB)
 ## Naive Bayes 
 ## 
 ## 13737 samples
-##    46 predictor
+##    45 predictor
 ##     5 classes: 'A', 'B', 'C', 'D', 'E' 
 ## 
 ## No pre-processing
 ## Resampling: Cross-Validated (10 fold) 
-## Summary of sample sizes: 12363, 12362, 12364, 12363, 12363, 12365, ... 
+## Summary of sample sizes: 12364, 12364, 12364, 12364, 12362, 12362, ... 
 ## Resampling results across tuning parameters:
 ## 
 ##   usekernel  Accuracy   Kappa    
-##   FALSE      0.5389119  0.4257562
-##    TRUE      0.7675641  0.7063650
+##   FALSE      0.5378118  0.4242194
+##    TRUE      0.7549651  0.6902744
 ## 
 ## Tuning parameter 'fL' was held constant at a value of 0
 ## Tuning
@@ -435,7 +434,7 @@ print(modNB)
 ## The final values used for the model were fL = 0, usekernel = TRUE and adjust
 ##  = 1.
 ```
-The Naive Bayes model outperformed LDA with an accuracy of 0.7675641 on the training set. The model is tuned using cross validation and found the most accurate approach was to set useKernal=TRUE.  
+The Naive Bayes model outperformed LDA with an accuracy of 0.7549651 on the training set. The model is tuned using cross validation and found the most accurate approach was to set useKernal=TRUE.  
   
 ## Combining models
 For the final step, combine all of the models using model stacking and evaluate the accuracy on the training data set. 
@@ -455,10 +454,10 @@ mbmCombTrain <- system.time({
                      verbose="FALSE")
 })
 ```
-The accuracy of the combined results (0.9997573) was better than any of the individual models. However, the gains are marginal since the accuracy of RF and GBM were already very high. 
+The accuracy of the combined results (0.9988352) was better than any of the individual models. However, the gains are marginal since the accuracy of RF and GBM were already very high. 
 
 # Validation
-Each of the models is applied to the validation data set. The accuracy of each is compared individually and the results are combined using model stacking.  
+Each of the models is applied to the validation data set. The accuracy of each is compared individually and the results are combined using model stacking Calculate the out-of-sample error for each method, too.   
 
 
 ```r
@@ -500,18 +499,23 @@ timeComb <- timeRF + timeBoost + timeLDA + timeNB +
   mbmCombValid[["user.self"]] + mbmCombValid[["sys.self"]]
 Results <- data.frame(RF = c(TrainingAccuracy=as.numeric(modRF$results[["Accuracy"]]), 
                              ValidationAccuracy=cmRFValid[["Accuracy"]],
+                             OutOfSampleError = 1-cmRFValid[["Accuracy"]],
                              TrainingTime=timeRF), 
                       Boost = c(TrainingAccuracy=as.numeric(modBoost$results[["Accuracy"]][9]), 
                                 ValidationAccuracy=cmBoostValid[["Accuracy"]],
+                             OutOfSampleError = 1-cmBoostValid[["Accuracy"]],
                                 TrainingTime=timeBoost), 
                       LDA = c(TrainingAccuracy=as.numeric(modLDA$results[["Accuracy"]]), 
                               ValidationAccuracy=cmLDAValid[["Accuracy"]],
+                             OutOfSampleError = 1-cmLDAValid[["Accuracy"]],
                               TrainingTime=timeLDA), 
                       NB = c(TrainingAccuracy=as.numeric(modNB$results[["Accuracy"]][2]), 
                              ValidationAccuracy=cmNBValid[["Accuracy"]],
+                             OutOfSampleError = 1-cmNBValid[["Accuracy"]],
                              TrainingTime=timeNB), 
                       Combined = c(TrainingAccuracy=as.numeric(modRFComb$results[["Accuracy"]][1]),
                                    ValidationAccuracy=cmRFCombValid[["Accuracy"]],
+                             OutOfSampleError = 1-cmRFCombValid[["Accuracy"]],
                                    TrainingTime=timeComb))
 
  reactable(Results,
@@ -533,8 +537,8 @@ Results <- data.frame(RF = c(TrainingAccuracy=as.numeric(modRF$results[["Accurac
 ```
 
 ```{=html}
-<div id="htmlwidget-c29479615802350717f3" class="reactable html-widget" style="width:auto;height:auto;"></div>
-<script type="application/json" data-for="htmlwidget-c29479615802350717f3">{"x":{"tag":{"name":"Reactable","attribs":{"data":{".rownames":["TrainingAccuracy","ValidationAccuracy","TrainingTime"],"RF":[0.996165900877929,0.997281223449448,27.93],"Boost":[0.987988590912919,0.988105352591334,33.66],"LDA":[0.685753139357788,0.676805437553101,2.11],"NB":[0.767564070822563,0.771282922684792,2.18],"Combined":[0.999757311005946,0.997621070518267,72.18]},"columns":[{"accessor":".rownames","name":"Model","type":"character","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"sortable":false,"filterable":false,"minWidth":180,"align":"right"},{"accessor":"RF","name":"Random Forest**","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Boost","name":"Stochastic Gradient Boosting","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"LDA","name":"Linear Discriminant Analysis","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"NB","name":"Naive Bayes","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Combined","name":"Combined (Model Stacking)***","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"}],"defaultPageSize":10,"paginationType":"numbers","showPageInfo":true,"minRows":1,"highlight":true,"outlined":true,"bordered":true,"inline":true,"dataKey":"1fe854a6c3a017a4d9fc658199889037","key":"1fe854a6c3a017a4d9fc658199889037"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-0f067ded6adcb52db107" class="reactable html-widget" style="width:auto;height:auto;"></div>
+<script type="application/json" data-for="htmlwidget-0f067ded6adcb52db107">{"x":{"tag":{"name":"Reactable","attribs":{"data":{".rownames":["TrainingAccuracy","ValidationAccuracy","OutOfSampleError","TrainingTime"],"RF":[0.993035662056434,0.994392523364486,0.00560747663551397,27.52],"Boost":[0.958374805464786,0.960407816482583,0.0395921835174171,29.97],"LDA":[0.675487276758917,0.67357689039932,0.32642310960068,1.52],"NB":[0.754965122766406,0.754630416312659,0.245369583687341,1.97000000000001],"Combined":[0.998835172311835,0.994562446898896,0.0054375531011045,64.56]},"columns":[{"accessor":".rownames","name":"Model","type":"character","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"sortable":false,"filterable":false,"minWidth":180,"align":"right"},{"accessor":"RF","name":"Random Forest**","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Boost","name":"Stochastic Gradient Boosting","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"LDA","name":"Linear Discriminant Analysis","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"NB","name":"Naive Bayes","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Combined","name":"Combined (Model Stacking)***","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"}],"defaultPageSize":10,"paginationType":"numbers","showPageInfo":true,"minRows":1,"highlight":true,"outlined":true,"bordered":true,"inline":true,"dataKey":"b550cce672db0640925955fa90bda25a","key":"b550cce672db0640925955fa90bda25a"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
 ```
 All of the models performed similarly well on the validation set and some even outperformed the results using training data. The random forest and GBM models performed well on the validation data indicating that concerns about over fitting are likely unfounded. The combined model stacking output continued to perform well on the validation set.
 

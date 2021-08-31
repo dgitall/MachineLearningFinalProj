@@ -124,11 +124,11 @@ colRemoved <- bad_count > 0.7*length(training$classe)
 This reduced the variables from `r dimStart` to `r dimBad`.  
 
 We can also remove some of the variables that we don't want to use to predict the
-outcome. These include user related variables and timestamps (the selection must be user agnostic and this isn't time series data).  As illustrated below, the new_window variable has very little variation so it can be removed from modeling, too. 
+outcome. These include user related variables and timestamps (the selection must be user agnostic and this isn't time series data).  As illustrated below, the new_window variable has very little variation so it can be removed from modeling, too. Remove the related num_window variable as well because it isn't clearly related to the instrument measurements. 
 ```{r removingvariables, cache=TRUE}
 
 table(training$new_window)
-unneeded <- c(1, 2, 3, 4, 5, 6)
+unneeded <- c(1, 2, 3, 4, 5, 6, 7)
 training <- training[,-unneeded]
 validation <- validation[,-unneeded]
 
@@ -137,7 +137,7 @@ colRemoved <- c(unneeded, colRemoved)
   
 Correlation between variables can cause many of our models to perform poorly. Plot the correlation matrix to see if we have any highly correlated predictors. 
 ``` {r correlation, cache=TRUE}
-corr <- cor(training[,-54])
+corr <- cor(training[,-length(names(training))])
 corrplot(corr, type="upper", order="hclust", 
          sig.level = 0.01, insig = "blank")
 
@@ -145,7 +145,7 @@ corrplot(corr, type="upper", order="hclust",
   
 A large number of variables have a low correlation. However, there are a few highly correlated variables. Find those variables with a high level of correlation to other variables in the data set and remove them. A cutoff of 0.9 will only remove those with the most extreme correlation. 
 ``` {r removecorrelated, cache=TRUE}
-dimb4Corr <- dim(training)
+dimb4Corr <- dim(training)[2]
 removeCorr <- findCorrelation(corr, cutoff = 0.9)
 print("Indices of highly correlated variables to remove")
 removeCorr
@@ -153,7 +153,7 @@ training <- training[,-removeCorr]
 validation <- validation[,-removeCorr]
 
 colRemoved <- c(removeCorr, colRemoved)
-dimAfterCorr <- dim(training)
+dimAfterCorr <- dim(training)[2]
 ```
   
 This removes another `r (dimb4Corr - dimAfterCorr)` variables, leaving a final data set of `r (dimAfterCorr - 1)` variables we will use to predict the variable 'classe'.  
@@ -188,7 +188,7 @@ mbmRFtune <- system.time({
 plot(modRF)
 ```
   
-The model accuracy increases as mtry increases, however, after mtry=4 the marginal improvement in accuracy drops off significantly. Selecting mtry=4 will continue to provide high accuracy while reducing execution time and reducing the likelihood of over fitting.
+The model accuracy increases as mtry increases, however, after mtry=5 the marginal improvement in accuracy drops off significantly. Selecting mtry=5 will continue to provide high accuracy while reducing execution time and reducing the likelihood of over fitting.
 
 ``` {r RandomForest, warning=FALSE, cache=TRUE}
 mbmRF <- system.time({
@@ -199,7 +199,7 @@ RFControl <- trainControl(method='repeatedcv',
                         search='grid',
                         allowParallel = TRUE)
 # Run with mtry=8
-tunegrid <- expand.grid(.mtry = 4)
+tunegrid <- expand.grid(.mtry = 5)
 modRF <- train(classe ~., data=training,
                method="rf",
                ntree = 150,
@@ -238,7 +238,7 @@ The optimization held shrinkage and n.minobsinnode constant and found the best m
 summary(modBoost)
 ```
    
-NOTE: the GBM model allows checking which variables have the highest influence on the model. The graph above shows that the top four most influential variables carry significantly more weight than the others. The top variable is `r summary(modBoost)[["var"]][1]`, followed by `r summary(modBoost)[["var"]][2]`, `r summary(modBoost)[["var"]][3]`, and `r summary(modBoost)[["var"]][4]`. As mentioned above, the information about the data set is no longer accessible. It is possible that `r summary(modBoost)[["var"]][1]` is a variable that shouldn't be included in the models. If this is true it would call into question any of our models. However, we can't know that without more information.   
+NOTE: the GBM model allows checking which variables have the highest influence on the model. The graph above shows that the top three most influential variables carry significantly more weight than the others. The top variable is `r summary(modBoost)[["var"]][1]`, followed by `r summary(modBoost)[["var"]][2]`, and `r summary(modBoost)[["var"]][3]`.      
   
 ## Factor-Based Linear Discriminant Analysis
 LDA is a fast model-based approach that assumes a multivariate Gaussian distribution in the predictors and that they have the same covariances. Effectively, it creates a model that is a series of straight lines drawn through the data. This will be a fast model to train, but it could be highly inaccurate if the data does not meet the assumptions.   
@@ -297,7 +297,7 @@ mbmCombTrain <- system.time({
 The accuracy of the combined results (`r modRFComb$results[["Accuracy"]][1]`) was better than any of the individual models. However, the gains are marginal since the accuracy of RF and GBM were already very high. 
 
 # Validation
-Each of the models is applied to the validation data set. The accuracy of each is compared individually and the results are combined using model stacking.  
+Each of the models is applied to the validation data set. The accuracy of each is compared individually and the results are combined using model stacking Calculate the out-of-sample error for each method, too.   
 
 ```{r validation, warning=FALSE, cache=TRUE}
 predRFValid <- predict(modRF, validation)
@@ -338,18 +338,23 @@ timeComb <- timeRF + timeBoost + timeLDA + timeNB +
   mbmCombValid[["user.self"]] + mbmCombValid[["sys.self"]]
 Results <- data.frame(RF = c(TrainingAccuracy=as.numeric(modRF$results[["Accuracy"]]), 
                              ValidationAccuracy=cmRFValid[["Accuracy"]],
+                             OutOfSampleError = 1-cmRFValid[["Accuracy"]],
                              TrainingTime=timeRF), 
                       Boost = c(TrainingAccuracy=as.numeric(modBoost$results[["Accuracy"]][9]), 
                                 ValidationAccuracy=cmBoostValid[["Accuracy"]],
+                             OutOfSampleError = 1-cmBoostValid[["Accuracy"]],
                                 TrainingTime=timeBoost), 
                       LDA = c(TrainingAccuracy=as.numeric(modLDA$results[["Accuracy"]]), 
                               ValidationAccuracy=cmLDAValid[["Accuracy"]],
+                             OutOfSampleError = 1-cmLDAValid[["Accuracy"]],
                               TrainingTime=timeLDA), 
                       NB = c(TrainingAccuracy=as.numeric(modNB$results[["Accuracy"]][2]), 
                              ValidationAccuracy=cmNBValid[["Accuracy"]],
+                             OutOfSampleError = 1-cmNBValid[["Accuracy"]],
                              TrainingTime=timeNB), 
                       Combined = c(TrainingAccuracy=as.numeric(modRFComb$results[["Accuracy"]][1]),
                                    ValidationAccuracy=cmRFCombValid[["Accuracy"]],
+                             OutOfSampleError = 1-cmRFCombValid[["Accuracy"]],
                                    TrainingTime=timeComb))
 
  reactable(Results,
