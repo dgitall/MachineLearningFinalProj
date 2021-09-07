@@ -1,10 +1,11 @@
 ---
-title: "Practical Machine Learning: Final Project "
+title: 'Practical Machine Learning: Final Project '
 author: "Darrell Gerber"
 output:
-  html_document: 
+  html_document:
     keep_md: yes
-
+  word_document: default
+  pdf_document: default
 ---
 
 
@@ -455,10 +456,12 @@ mbmCombTrain <- system.time({
 })
 ```
 The accuracy of the combined results (0.9988352) was better than any of the individual models. However, the gains are marginal since the accuracy of RF and GBM were already very high. 
+  
+The random forest and GBM both had very high accuracy meaning that the marginal accuracy gain from combining the results was small. However, combining the model-based predictors with the tree-based predictors may help further reduce the impact of over fitting when applied to new real-world data. The final model choice will be the model-stacking using the four methods investigated here: random forest, boosting, linear discriminant analysis, and naive Bayes.    
 
 # Validation
-Each of the models is applied to the validation data set. The accuracy of each is compared individually and the results are combined using model stacking Calculate the out-of-sample error for each method, too.   
-
+Each of the models is applied to the validation data set and combined using model-stacking (our final model selected during training) to determine the out-of-sample performance.      
+  
 
 ```r
 predRFValid <- predict(modRF, validation)
@@ -538,11 +541,11 @@ Results <- data.frame(RF = c(TrainingAccuracy=as.numeric(modRF$results[["Accurac
 
 ```{=html}
 <div id="htmlwidget-0f067ded6adcb52db107" class="reactable html-widget" style="width:auto;height:auto;"></div>
-<script type="application/json" data-for="htmlwidget-0f067ded6adcb52db107">{"x":{"tag":{"name":"Reactable","attribs":{"data":{".rownames":["TrainingAccuracy","ValidationAccuracy","OutOfSampleError","TrainingTime"],"RF":[0.993035662056434,0.994392523364486,0.00560747663551397,27.52],"Boost":[0.958374805464786,0.960407816482583,0.0395921835174171,29.97],"LDA":[0.675487276758917,0.67357689039932,0.32642310960068,1.52],"NB":[0.754965122766406,0.754630416312659,0.245369583687341,1.97000000000001],"Combined":[0.998835172311835,0.994562446898896,0.0054375531011045,64.56]},"columns":[{"accessor":".rownames","name":"Model","type":"character","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"sortable":false,"filterable":false,"minWidth":180,"align":"right"},{"accessor":"RF","name":"Random Forest**","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Boost","name":"Stochastic Gradient Boosting","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"LDA","name":"Linear Discriminant Analysis","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"NB","name":"Naive Bayes","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Combined","name":"Combined (Model Stacking)***","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"}],"defaultPageSize":10,"paginationType":"numbers","showPageInfo":true,"minRows":1,"highlight":true,"outlined":true,"bordered":true,"inline":true,"dataKey":"b550cce672db0640925955fa90bda25a","key":"b550cce672db0640925955fa90bda25a"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
+<script type="application/json" data-for="htmlwidget-0f067ded6adcb52db107">{"x":{"tag":{"name":"Reactable","attribs":{"data":{".rownames":["TrainingAccuracy","ValidationAccuracy","OutOfSampleError","TrainingTime"],"RF":[0.993035662056434,0.994392523364486,0.00560747663551397,26.85],"Boost":[0.958374805464786,0.960407816482583,0.0395921835174171,31.78],"LDA":[0.675487276758917,0.67357689039932,0.32642310960068,1.60999999999999],"NB":[0.754965122766406,0.754630416312659,0.245369583687341,1.77],"Combined":[0.998835172311835,0.994562446898896,0.0054375531011045,65.92]},"columns":[{"accessor":".rownames","name":"Model","type":"character","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"sortable":false,"filterable":false,"minWidth":180,"align":"right"},{"accessor":"RF","name":"Random Forest**","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Boost","name":"Stochastic Gradient Boosting","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"LDA","name":"Linear Discriminant Analysis","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"NB","name":"Naive Bayes","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"},{"accessor":"Combined","name":"Combined (Model Stacking)***","type":"numeric","format":{"cell":{"digits":5},"aggregated":{"digits":5}},"minWidth":110,"align":"center"}],"defaultPageSize":10,"paginationType":"numbers","showPageInfo":true,"minRows":1,"highlight":true,"outlined":true,"bordered":true,"inline":true,"dataKey":"00ef5d825c7a2c7cb4a85925e6275c92","key":"00ef5d825c7a2c7cb4a85925e6275c92"},"children":[]},"class":"reactR_markup"},"evals":[],"jsHooks":[]}</script>
 ```
-All of the models performed similarly well on the validation set and some even outperformed the results using training data. The random forest and GBM models performed well on the validation data indicating that concerns about over fitting are likely unfounded. The combined model stacking output continued to perform well on the validation set.
+All of the models performed similarly well on the validation set and some even outperformed the results using training data. The random forest and GBM models performed well on the validation data indicating that concerns about over fitting by the tree-based methods is likely unfounded. The combined model stacking output continued to perform well on the validation set with a very low out-of-sample error of 0.0054376.
 
-A comparison of the relative time to complete model training indicates a strong inverse relationship between computational effort and model accuracy. The Naive Bayes method, however, performed well given the significantly lower computational effort than random forest and GBM. Additionally, the random forest and GBM both had very high accuracy meaning that the marginal accuracy gain from combining the results was small. However, combining the model-based predictors with the tree-based predictors may help further reduce the impact of over fitting when applied to new real-world data.  
+A comparison of the relative time to complete model training indicates a strong inverse relationship between computational effort and model accuracy. The Naive Bayes method, however, performed well given the significantly lower computational effort than random forest and GBM.   
   
 NOTEs: * All of the timing data, in seconds, is a sum of the user time and system time. It is not the apparent time of execution. These values are highly platform dependent. They should only be used for comparison between prediction methods. ** The training time for random forest includes both the time to tune the model and the final modeling run. *** The Combined (Model Stacking) time is the time to combine the validation results plus the sum of the training time for all of the constituent models.
   

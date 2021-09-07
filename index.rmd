@@ -1,10 +1,11 @@
 ---
-title: "Practical Machine Learning: Final Project "
+title: 'Practical Machine Learning: Final Project '
 author: "Darrell Gerber"
 output:
-  html_document: 
+  html_document:
     keep_md: yes
-
+  word_document: default
+  pdf_document: default
 ---
 
 
@@ -295,10 +296,12 @@ mbmCombTrain <- system.time({
 
 ```
 The accuracy of the combined results (`r modRFComb$results[["Accuracy"]][1]`) was better than any of the individual models. However, the gains are marginal since the accuracy of RF and GBM were already very high. 
+  
+The random forest and GBM both had very high accuracy meaning that the marginal accuracy gain from combining the results was small. However, combining the model-based predictors with the tree-based predictors may help further reduce the impact of over fitting when applied to new real-world data. The final model choice will be the model-stacking using the four methods investigated here: random forest, boosting, linear discriminant analysis, and naive Bayes.    
 
 # Validation
-Each of the models is applied to the validation data set. The accuracy of each is compared individually and the results are combined using model stacking Calculate the out-of-sample error for each method, too.   
-
+Each of the models is applied to the validation data set and combined using model-stacking (our final model selected during training) to determine the out-of-sample performance.      
+  
 ```{r validation, warning=FALSE, cache=TRUE}
 predRFValid <- predict(modRF, validation)
 cmRFValid <- confusionMatrix(predRFValid, validation$classe)$overall
@@ -374,9 +377,9 @@ Results <- data.frame(RF = c(TrainingAccuracy=as.numeric(modRF$results[["Accurac
                         Combined = colDef(name = "Combined (Model Stacking)***", align = "center",
                                           minWidth=110)))
 ```
-All of the models performed similarly well on the validation set and some even outperformed the results using training data. The random forest and GBM models performed well on the validation data indicating that concerns about over fitting are likely unfounded. The combined model stacking output continued to perform well on the validation set.
+All of the models performed similarly well on the validation set and some even outperformed the results using training data. The random forest and GBM models performed well on the validation data indicating that concerns about over fitting by the tree-based methods is likely unfounded. The combined model stacking output continued to perform well on the validation set with a very low out-of-sample error of `r 1-cmRFCombValid[["Accuracy"]]`.
 
-A comparison of the relative time to complete model training indicates a strong inverse relationship between computational effort and model accuracy. The Naive Bayes method, however, performed well given the significantly lower computational effort than random forest and GBM. Additionally, the random forest and GBM both had very high accuracy meaning that the marginal accuracy gain from combining the results was small. However, combining the model-based predictors with the tree-based predictors may help further reduce the impact of over fitting when applied to new real-world data.  
+A comparison of the relative time to complete model training indicates a strong inverse relationship between computational effort and model accuracy. The Naive Bayes method, however, performed well given the significantly lower computational effort than random forest and GBM.   
   
 NOTEs: * All of the timing data, in seconds, is a sum of the user time and system time. It is not the apparent time of execution. These values are highly platform dependent. They should only be used for comparison between prediction methods. ** The training time for random forest includes both the time to tune the model and the final modeling run. *** The Combined (Model Stacking) time is the time to combine the validation results plus the sum of the training time for all of the constituent models.
   
